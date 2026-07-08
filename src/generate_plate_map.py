@@ -2,9 +2,13 @@
 Genera un libro de Excel (.xlsx) para el seguimiento de una microplaca de 384 pocillos
 (Eppendorf Twin.tec 384) usada en el pipeline DESI-MS de hongos.
 
-Pestañas:
-  1. Plate_Map        -> cuadrícula visual de la placa (16 filas A-P x 24 columnas)
-  2. Sample_Metadata   -> tabla plana (384 filas) lista para pandas
+Lee las muestras reales desde:
+    data/plate_inputs/{PLATE_ID}_input.xlsx   (pestaña "input")
+
+Genera:
+    data/plates/{PLATE_ID}.xlsx
+        - Plate_Map        -> cuadrícula visual de la placa (16 filas A-P x 24 columnas)
+        - Sample_Metadata  -> tabla plana (384 filas) lista para pandas
 
 Requiere: openpyxl
 
@@ -15,7 +19,7 @@ Uso:
 import sys
 import string
 from pathlib import Path
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
@@ -23,42 +27,77 @@ from openpyxl.utils import get_column_letter
 FONT_NAME = "Calibri"
 PLATE_ID = sys.argv[1] if len(sys.argv) > 1 else "PLATE_01"
 
-# Carpeta de salida: data/plates/ relativa a la raíz del repo
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data" / "plates"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+INPUT_PATH = REPO_ROOT / "data" / "plate_inputs" / f"{PLATE_ID}_input.xlsx"
+OUTPUT_DIR = REPO_ROOT / "data" / "plates"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 ROWS = list(string.ascii_uppercase[:16])   # A ... P
 COLS = list(range(1, 25))                  # 1 ... 24
+VALID_WELLS = {f"{r}{c}" for r in ROWS for c in COLS}
 
 # ---------------------------------------------------------------------------
-# Ejemplos ficticios para las primeras posiciones (sirven de plantilla visual)
-# well -> (sample_id, organism, condition, replicate, notes)
+# 1) Leer la plantilla de entrada llenada a mano
 # ---------------------------------------------------------------------------
-EXAMPLES = {
-    "A1": ("SAM_001", "Aspergillus niger",        "Control",               1, "Enviado por Morato"),
-    "A2": ("SAM_002", "Aspergillus niger",        "Control",               2, "Enviado por Morato"),
-    "A3": ("SAM_003", "Aspergillus niger",        "Tratado con compuesto X", 1, "Mutante bio-ingeniería"),
-    "A4": ("SAM_004", "Aspergillus niger",        "Tratado con compuesto X", 2, "Mutante bio-ingeniería"),
-    "B1": ("SAM_005", "Penicillium chrysogenum",  "Control",               1, "Cultivo de 5 días"),
-    "B2": ("SAM_006", "Penicillium chrysogenum",  "Control",               2, "Cultivo de 5 días"),
-    "B3": ("SAM_007", "Penicillium chrysogenum",  "Tratado con compuesto X", 1, "Cultivo de 5 días"),
-    "B4": ("SAM_008", "Penicillium chrysogenum",  "Tratado con compuesto X", 2, "Cultivo de 5 días"),
-    "C1": ("SAM_009", "Blank",                    "Control",               1, "Blanco / medio sin inocular"),
-}
+if not INPUT_PATH.exists():
+    print(f"ERROR: no encontré el archivo de entrada:\n  {INPUT_PATH}")
+    print("Crea ese archivo (copia PLATE_input_template.xlsx, llénalo, y guárdalo con ese nombre exacto).")
+    sys.exit(1)
 
-PLATE_LABEL = {well: data[0] if well not in ("C1",) else "Control" for well, data in EXAMPLES.items()}
-# nicer visual labels for the plate map (short, readable in a small cell)
-PLATE_LABEL = {
-    "A1": "Hongo_A_Rep1", "A2": "Hongo_A_Rep2", "A3": "Hongo_A_TratX_R1", "A4": "Hongo_A_TratX_R2",
-    "B1": "Hongo_B_Rep1", "B2": "Hongo_B_Rep2", "B3": "Hongo_B_TratX_R1", "B4": "Hongo_B_TratX_R2",
-    "C1": "Control",
-}
+wb_in = load_workbook(INPUT_PATH, data_only=True)
+if "input" not in wb_in.sheetnames:
+    print(f"ERROR: el archivo {INPUT_PATH.name} no tiene una pestaña llamada 'input'.")
+    sys.exit(1)
 
+ws_in = wb_in["input"]
+header = [c.value for c in ws_in[1]]
+required_cols = ["well", "sample_id", "organism", "condition", "replicate", "notes"]
+missing = [col for col in required_cols if col not in header]
+if missing:
+    print(f"ERROR: faltan columnas en la plantilla de entrada: {missing}")
+    sys.exit(1)
+col_idx = {name: header.index(name) for name in required_cols}
+
+EXAMPLES = {}
+errors = []
+for row in ws_in.iter_rows(min_row=2, values_only=True):
+    if row[col_idx["well"]] is None:
+        continue
+    well = str(row[col_idx["well"]]).strip().upper()
+    if well == "":
+        continue
+    if well not in VALID_WELLS:
+        errors.append(f"Pocillo inválido: '{well}' (debe ser letra A-P + número 1-24)")
+        continue
+    if well in EXAMPLES:
+        errors.append(f"Pocillo duplicado en la plantilla: '{well}'")
+        continue
+    sample_id = row[col_idx["sample_id"]] or ""
+    organism = row[col_idx["organism"]] or ""
+    condition = row[col_idx["condition"]] or ""
+    replicate = row[col_idx["replicate"]] if row[col_idx["replicate"]] is not None else ""
+    notes = row[col_idx["notes"]] or ""
+    EXAMPLES[well] = (sample_id, organism, condition, replicate, notes)
+
+if errors:
+    print("ERROR: se encontraron problemas en la plantilla de entrada:")
+    for e in errors:
+        print(f"  - {e}")
+    sys.exit(1)
+
+if not EXAMPLES:
+    print(f"ERROR: {INPUT_PATH.name} no tiene ninguna fila de muestra llenada.")
+    sys.exit(1)
+
+# Etiqueta corta para el mapa visual: usa el sample_id (o el well si no hay dato)
+PLATE_LABEL = {well: str(data[0]) if data[0] else well for well, data in EXAMPLES.items()}
+
+# ---------------------------------------------------------------------------
+# 2) Construir el libro de salida
+# ---------------------------------------------------------------------------
 wb = Workbook()
 
-# ===========================================================================
-# 1) PLATE_MAP
-# ===========================================================================
+# ===== PLATE_MAP =====
 ws_map = wb.active
 ws_map.title = "Plate_Map"
 
@@ -82,7 +121,6 @@ ws_map.row_dimensions[1].height = 22
 header_row = 3
 first_data_row = 4
 
-# column headers (1-24)
 ws_map.cell(row=header_row, column=1, value="").fill = axis_fill
 ws_map.cell(row=header_row, column=1).border = border
 for j, col_num in enumerate(COLS, start=2):
@@ -92,7 +130,6 @@ for j, col_num in enumerate(COLS, start=2):
     c.alignment = Alignment(horizontal="center", vertical="center")
     c.border = border
 
-# row headers (A-P) + wells
 for i, row_letter in enumerate(ROWS, start=0):
     r = first_data_row + i
     rh = ws_map.cell(row=r, column=1, value=row_letter)
@@ -109,7 +146,8 @@ for i, row_letter in enumerate(ROWS, start=0):
         c.font = example_font if well in PLATE_LABEL else well_font
         if well in PLATE_LABEL:
             c.value = PLATE_LABEL[well]
-            c.fill = control_fill if PLATE_LABEL[well] == "Control" else sample_fill
+            condition_val = str(EXAMPLES[well][2]).lower()
+            c.fill = control_fill if "control" in condition_val else sample_fill
         else:
             c.fill = empty_fill
 
@@ -121,9 +159,7 @@ for i in range(len(ROWS)):
 
 ws_map.freeze_panes = ws_map.cell(row=first_data_row, column=2)
 
-# ===========================================================================
-# 2) SAMPLE_METADATA
-# ===========================================================================
+# ===== SAMPLE_METADATA =====
 ws_meta = wb.create_sheet("Sample_Metadata")
 
 columns = ["plate_id", "well", "sample_id", "organism", "condition", "replicate", "filename", "notes"]
@@ -142,12 +178,14 @@ for i, h in enumerate(columns, start=1):
     ws_meta.column_dimensions[get_column_letter(i)].width = widths[i-1]
 
 r = 2
+filled_count = 0
 for row_letter in ROWS:
     for col_num in COLS:
         well = f"{row_letter}{col_num}"
         filename = f"{PLATE_ID}_{well}.mzML"
         if well in EXAMPLES:
             sample_id, organism, condition, replicate, notes = EXAMPLES[well]
+            filled_count += 1
         else:
             sample_id, organism, condition, replicate, notes = ("", "", "", "", "")
 
@@ -172,5 +210,5 @@ ws_meta.freeze_panes = "A2"
 
 output_path = OUTPUT_DIR / f"{PLATE_ID}.xlsx"
 wb.save(output_path)
-print(f"Listo: {last_row - 1} pocillos mapeados (A1 -> P24).")
+print(f"Listo: {filled_count} pocillos llenados de 384 totales.")
 print(f"Guardado en: {output_path}")
