@@ -212,3 +212,4 @@ output_path = OUTPUT_DIR / f"{PLATE_ID}.xlsx"
 wb.save(output_path)
 print(f"Listo: {filled_count} pocillos llenados de 384 totales.")
 print(f"Guardado en: {output_path}")
+

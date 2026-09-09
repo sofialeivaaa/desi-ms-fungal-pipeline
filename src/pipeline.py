@@ -27,14 +27,14 @@ def load_all_plates(plates_folder):
         all_plates_data.append(df)
         
     combined_metadata = pd.concat(all_plates_data, ignore_index=True)
-    print(f"✨ Successfully loaded a total of {len(combined_metadata)} rows/wells from {len(plate_files)} plate(s).")
+    print(f"Successfully loaded a total of {len(combined_metadata)} rows/wells from {len(plate_files)} plate(s).")
     return combined_metadata
 
 def load_chemical_library(library_path):
     """
     Loads the reference database with the target molecules we expect from the fungi.
     """
-    print(f"🔬 Loading chemical reference library from: {library_path}")
+    print(f"Loading chemical reference library from: {library_path}")
     return pd.read_csv(library_path)
 
 def calculate_ppm_error(experimental_mz, theoretical_mz):
@@ -45,7 +45,7 @@ def calculate_ppm_error(experimental_mz, theoretical_mz):
 
 def identify_molecules(well_position, experimental_peaks, chemical_library, metadata_df, ppm_tolerance=10.0):
     """
-    🧠 Core Engine: Compares peaks against library AND bridges them with well metadata.
+    Core Engine: Compares peaks against library AND bridges them with well metadata.
     """
     identifications = []
     
@@ -99,35 +99,88 @@ if __name__ == "__main__":
     RAW_PATH = os.path.join("data", "raw")
     LIBRARY_PATH = os.path.join("data", "chemical_library.csv")
     PROCESSED_PATH = os.path.join("data", "processed")
-    
+
     try:
-        # 1. Cargar control de placas e historial químico
+        # 1. Load plate metadata and chemical library
         metadata = load_all_plates(PLATES_PATH)
-        
+
         if metadata is not None:
-            
+
             chem_lib = load_chemical_library(LIBRARY_PATH)
             sample_list = load_raw_spectra(RAW_PATH, metadata)
+
             
-            # 2. SIMULACIÓN: Ejecutamos el motor cruzando el mapa de tu placa
-            print(f"\n🧠 Running molecular identification engine with sample mapping...")
-            
-            # Simulamos que Morato nos dio datos del pocillo A1
-            mock_well = "A1" 
-            mock_experimental_peaks = [
-                (396.6512, 2500000),  # Ergosterol
-                (152.1505, 1800000)   # Arabitol
-            ]
-            
-            # El motor corre y genera el reporte cruzado
-            matches = identify_molecules(mock_well, mock_experimental_peaks, chem_lib, metadata, ppm_tolerance=10.0)
-            
-            # 3. Guardar el resultado final si hubo hallazgos
-            if matches:
-                results_df = pd.DataFrame(matches)
-                output_file = os.path.join(PROCESSED_PATH, "identified_metabolites.csv")
-                results_df.to_csv(output_file, index=False)
-                print(f"\n💾 Results successfully bridged and saved to: {output_file}")
-            
+
+            # 3. Heatmap intensity analysis (pre-processed results from Dr. Morato)
+            print("\n" + "="*50)
+            print("HEATMAP INTENSITY ANALYSIS")
+            print("="*50)
+
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, os.path.dirname(__file__))
+
+            from load_data import (parse_heatmap_filename, confirm_heatmap_metadata,
+                                   load_heatmap, load_plate_metadata, load_spectra_filtcent)
+            from plate_layout import join_heatmap_with_metadata, find_plate_metadata_file
+            from analysis import run_targeted_analysis, summarize_targeted, run_untargeted_analysis
+            from reports import export_results
+
+            PLATES_PATH_P    = Path("data/plates")
+            SPECTRA_PATH_P   = Path("data/spectra")
+            HEATMAPS_PATH_P  = Path("data/raw/Heatmaps")
+            PROCESSED_PATH_P = Path("data/processed")
+
+            chem_lib_p = load_chemical_library(LIBRARY_PATH)
+
+            heatmap_files = sorted([
+                f for f in HEATMAPS_PATH_P.rglob("Heatmap_*.xlsx")
+                if not f.name.startswith("~")
+            ])
+
+            if not heatmap_files:
+                print("⚠️  No heatmap files found in data/plates/")
+            else:
+                all_targeted_well    = []
+                all_targeted_summary = []
+                plate_id_used        = None
+
+                for heatmap_path in heatmap_files:
+                    parsed    = parse_heatmap_filename(heatmap_path)
+                    confirmed = confirm_heatmap_metadata(parsed)
+
+                    heatmap_df  = load_heatmap(heatmap_path)
+                    plate_file  = find_plate_metadata_file(confirmed["plate_id"], PLATES_PATH_P)
+                    metadata_df = load_plate_metadata(plate_file)
+
+                    if not confirmed["plate_id"] and "plate_id" in metadata_df.columns:
+                        confirmed["plate_id"] = metadata_df["plate_id"].iloc[0]
+                    plate_id_used = confirmed["plate_id"]
+
+                    joined_df        = join_heatmap_with_metadata(heatmap_df, metadata_df, confirmed)
+                    targeted_well    = run_targeted_analysis(joined_df, chem_lib_p)
+                    targeted_summary = summarize_targeted(targeted_well)
+
+                    all_targeted_well.append(targeted_well)
+                    all_targeted_summary.append(targeted_summary)
+
+                spectra_files = sorted([
+                    f for f in SPECTRA_PATH_P.glob("Spectra*.xlsx")
+                    if not f.name.startswith("~")
+                ])
+                untargeted_df = pd.DataFrame()
+                if spectra_files:
+                    spectra_dict  = load_spectra_filtcent(spectra_files[0])
+                    untargeted_df = run_untargeted_analysis(spectra_dict, top_n=30)
+
+                plate_id_used = plate_id_used or "PLATE_UNKNOWN"
+                export_results(
+                    targeted_well_df    = pd.concat(all_targeted_well,    ignore_index=True),
+                    targeted_summary_df = pd.concat(all_targeted_summary, ignore_index=True),
+                    untargeted_df       = untargeted_df,
+                    plate_id            = plate_id_used,
+                    output_dir          = PROCESSED_PATH_P,
+                )
+
     except FileNotFoundError as e:
-        print(f"⚠️ Directory error: {e}. Please check your files in data/")
+        print(f"Directory error: {e}. Please check your files in data/")
