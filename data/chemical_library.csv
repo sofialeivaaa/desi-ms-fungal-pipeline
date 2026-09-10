@@ -1,0 +1,26 @@
+molecule_name,formula,exact_mass,ion_mode,adduct_type,target_mz,type,reaction,notes
+Mannitol,C6H14O6,182.0790,Positive,[M+Na]+,205.0685,Osmotic Driver,Na,Sugar alcohol - hard to ionize directly
+Mannitol,C6H14O6,182.0790,Positive,[M+K]+,221.0424,Osmotic Driver,K,Sugar alcohol - hard to ionize directly
+Mannitol,C6H14O6,182.0790,Negative,[M+Cl]-,217.0457,Osmotic Driver,Cl,Sugar alcohol negative mode
+Mannitol,C6H14O6,182.0790,Positive,[M+Na]+,205.0685,Osmotic Driver,FMPB,Reactive DESI derivatization
+Arabitol,C5H12O5,152.0685,Positive,[M+Na]+,175.0579,Stress polyol,Na,Sugar alcohol - hard to ionize directly
+Arabitol,C5H12O5,152.0685,Positive,[M+K]+,191.0318,Stress polyol,K,Sugar alcohol - hard to ionize directly
+Arabitol,C5H12O5,152.0685,Negative,[M+Cl]-,187.0352,Stress polyol,Cl,Sugar alcohol negative mode
+Arabitol,C5H12O5,152.0685,Positive,[M+Na]+,175.0579,Stress polyol,FMPB,Reactive DESI derivatization
+Sorbitol,C6H14O6,182.0790,Positive,[M+Na]+,205.0685,Osmotic Driver,Na,Isomer of mannitol - same mass
+Sorbitol,C6H14O6,182.0790,Positive,[M+K]+,221.0424,Osmotic Driver,K,Isomer of mannitol - same mass
+Sorbitol,C6H14O6,182.0790,Negative,[M+Cl]-,217.0457,Osmotic Driver,Cl,Isomer of mannitol - same mass
+Ergothioneine,C9H15N3O2S,229.0885,Positive,[M+H]+,230.0958,Amino acid,Direct,Best detected in positive mode
+Ergothioneine,C9H15N3O2S,229.0885,Positive,[M+Na]+,252.0777,Amino acid,Na,Sodium adduct positive mode
+Ergothioneine,C9H15N3O2S,229.0885,Negative,[M-H]-,228.0812,Amino acid,Direct,Negative mode deprotonated
+Ergosterol,C28H44O,396.3392,Positive,[M+H]+,397.3465,Vesicle Marker,Direct,Sterol - positive mode preferred
+Ergosterol,C28H44O,396.3392,Positive,[M+Na]+,419.3285,Vesicle Marker,Na,Sodium adduct
+Ergosterol,C28H44O,396.3392,Negative,[M-H]-,395.3319,Vesicle Marker,Direct,Negative mode
+Lovastatin,C24H36O5,404.2563,Positive,[M+H]+,405.2636,Statin,Direct,Positive mode preferred
+Lovastatin,C24H36O5,404.2563,Positive,[M+Na]+,427.2455,Statin,Na,Sodium adduct
+Lovastatin,C24H36O5,404.2563,Negative,[M-H]-,403.2490,Statin,Direct,Negative mode
+Phosphatidylcholine,C42H82NO8P,759.5778,Positive,[M+H]+,760.5851,Signaling Lipid,Direct,Most abundant PC in positive mode
+Phosphatidylcholine,C42H82NO8P,759.5778,Positive,[M+Na]+,782.5671,Signaling Lipid,Na,Sodium adduct positive mode
+Phosphatidylcholine,C42H82NO8P,759.5778,Negative,[M+Cl]-,794.5524,Signaling Lipid,Cl,Negative mode via chloride adduct
+Potassium,K,38.9637,Positive,[M]+,38.9637,Counter ion,Direct,Detected as K+ directly
+Sodium,Na,22.9898,Positive,[M]+,22.9898,Counter ion,Direct,Detected as Na+ directly

@@ -1,6 +1,15 @@
-data/raw/
-data/processed/
+# Raw instrument files - too large for git
 *.mzML
 *.mzXML
 *.RAW
-*.csv
+
+# Generated output files - recreated by pipeline
+data/processed/*.xlsx
+data/processed/*.csv
+
+# Excel temp files
+~$*.xlsx
+
+# Python cache
+__pycache__/
+*.pyc
